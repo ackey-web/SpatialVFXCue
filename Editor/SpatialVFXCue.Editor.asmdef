@@ -1,0 +1,20 @@
+{
+    "name": "SpatialVFXCue.Editor",
+    "rootNamespace": "SpatialVFXCue",
+    "references": [
+        "SpatialVFXCue",
+        "SpatialSys.UnitySDK",
+        "SpatialSys.UnitySDK.Editor"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

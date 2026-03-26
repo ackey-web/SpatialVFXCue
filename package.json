@@ -1,0 +1,28 @@
+{
+  "name": "io.github.ackey-web.spatialvfxcue",
+  "version": "1.0.0",
+  "displayName": "SpatialVFXCue",
+  "description": "Spatial メタバース空間でリアルタイムVFX演出を操作するUnityアセット。BPM同期・キーボードトリガー・VJコントロール対応。",
+  "unity": "2021.3",
+  "dependencies": {
+    "io.spatial.unitysdk": "1.0.0"
+  },
+  "keywords": [
+    "spatial",
+    "vfx",
+    "particles",
+    "metaverse",
+    "music"
+  ],
+  "author": {
+    "name": "ackey-web",
+    "url": "https://github.com/ackey-web"
+  },
+  "samples": [
+    {
+      "displayName": "Demo Scene",
+      "description": "SpatialVFXCue のデモシーン（Spatial SDK 必須）",
+      "path": "Samples~/Demo"
+    }
+  ]
+}
