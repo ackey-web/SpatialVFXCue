@@ -186,8 +186,9 @@ namespace SpatialVFXCue
 
             for (int i = 0; i < prefabNames.Length; i++)
             {
-                string path = $"Assets/SpatialVFXCue/Prefabs/{prefabNames[i]}.prefab";
-                GameObject prefabGo = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+                string[] guids = AssetDatabase.FindAssets($"{prefabNames[i]} t:Prefab");
+                string path = guids.Length > 0 ? AssetDatabase.GUIDToAssetPath(guids[0]) : string.Empty;
+                GameObject prefabGo = !string.IsNullOrEmpty(path) ? AssetDatabase.LoadAssetAtPath<GameObject>(path) : null;
                 SpatialNetworkObject netObj = prefabGo != null ? prefabGo.GetComponent<SpatialNetworkObject>() : null;
 
                 if (netObj == null)
