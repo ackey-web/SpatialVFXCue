@@ -11,13 +11,6 @@ Spatial メタバース空間でリアルタイム VFX 演出を操作する Uni
 
 ---
 
-## ⚠️ インストール方法（重要）
-
-**Package Manager（git URL）からのインストールは動作しません。**  
-必ず下記の手順で `Assets/` フォルダに直接コピーしてください。
-
----
-
 ## インストール手順
 
 ### ステップ 1：前提パッケージのインストール
@@ -63,18 +56,51 @@ Assets/
 
 Unity メニューバーから実行：
 ```
-SpatialVFXCue > One-Click Setup
+SpatialVFXCue > Setup Sample Assets
 ```
 
-VFX プレハブとデモシーンが自動生成されます。
+テクスチャ・マテリアル・VFX Prefab・デモシーンが自動生成されます。
 
 ---
 
-### ステップ 5：デモシーンで確認
+## 新規プロジェクト向け（デモシーンをそのまま使う場合）
 
-1. `Assets/SpatialVFXCue/Scenes/SpatialVFXCue_Demo.unity` を開く
-2. Spatial SDK メニュー →「Test Active Scene」でサンドボックス起動
-3. キー **1〜6** を押して演出が出ることを確認
+1. 上記ステップ 1〜4 を完了する
+2. `Assets/SpatialVFXCue/Scenes/SpatialVFXCue_Demo.unity` を開く
+3. Spatial SDK の **Space Package Config** を開き、以下を設定：
+   - **Scene**: `SpatialVFXCue_Demo` を指定
+   - **C# Assembly**: `SpatialVFXCue` を指定
+   - **Network Prefabs**: 以下の 6 つを登録
+     - `VFX_Fireworks`
+     - `VFX_Confetti`
+     - `VFX_MeteorShower`
+     - `VFX_SpotlightBeam`
+     - `VFX_SmokeBurst`
+     - `VFX_SparkleRain`
+4. Spatial SDK メニュー →「Test Active Scene」でサンドボックス起動
+5. キー **1〜6** を押して演出が出ることを確認
+
+---
+
+## 既存空間向け（既存シーンに VFX 機能を追加する場合）
+
+1. 上記ステップ 1〜4 を完了する（サンプルアセット生成まで）
+2. 既存シーンを開いた状態で、メニューから実行：
+   ```
+   SpatialVFXCue > Repair Scene Components
+   ```
+   VFXCueManager 等の必要なコンポーネントが自動追加されます
+3. プロジェクトの **Space Package Config** を開き、以下を手動登録：
+   - **C# Assembly**: `SpatialVFXCue` を指定
+   - **Network Prefabs**: 以下の 6 つを登録
+     - `VFX_Fireworks`
+     - `VFX_Confetti`
+     - `VFX_MeteorShower`
+     - `VFX_SpotlightBeam`
+     - `VFX_SmokeBurst`
+     - `VFX_SparkleRain`
+
+> **注意**: Space Config のシーン設定は変更しないでください。既存空間のシーン設定がそのまま維持されます。
 
 ---
 

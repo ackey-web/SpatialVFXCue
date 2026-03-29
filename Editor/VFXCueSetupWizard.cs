@@ -1,13 +1,9 @@
 #if UNITY_EDITOR
 using System.IO;
 using System.Collections.Generic;
-using System.Linq;
 using UnityEngine;
 using UnityEditor;
-using UnityEditor.Compilation;
-using UnityEditor.SceneManagement;
 using SpatialSys.UnitySDK;
-using SpatialSDKEditor = SpatialSys.UnitySDK.Editor;
 
 namespace SpatialVFXCue
 {
@@ -18,12 +14,10 @@ namespace SpatialVFXCue
         private const string MaterialPath = BasePath + "/Materials";
         private const string PrefabPath = BasePath + "/Prefabs";
         private const string ScenePath = BasePath + "/Scenes";
-        private const string AsmdefPath = BasePath + "/SpatialVFXCue.asmdef";
 
-        [MenuItem("SpatialVFXCue/One-Click Setup")]
-        public static void SetupAll()
+        [MenuItem("SpatialVFXCue/Setup Sample Assets")]
+        public static void SetupSampleAssets()
         {
-            // 1. サンプルアセット生成
             EnsureDirectories();
             CreateTextures();
             AssetDatabase.Refresh();
@@ -35,263 +29,64 @@ namespace SpatialVFXCue
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
 
-            // 2. Space Config に自動登録（なければ作成）
-            string configReport = RegisterToSpaceConfig(true);
-
-            string message = "セットアップが完了しました！\n\n" +
+            string message = "サンプルアセットの生成が完了しました！\n\n" +
                 "【生成されたもの】\n" +
                 "- テクスチャ: 4種\n" +
                 "- マテリアル: 6種\n" +
                 "- VFX Prefab: 6種\n" +
                 "- デモシーン: 1つ（全機能設定済み）\n\n" +
-                "【デモシーンに含まれる機能】\n" +
-                "- VFXCueManager: キー1〜6で各VFX発動\n" +
-                "- BPM同期: Tキーでタップテンポ、Bキーでビート開始\n" +
-                "- VJコントローラー: Tab/N/C/L/P等でVJ操作\n" +
-                "- ランダムVFX: 8キーでランダム発動\n" +
-                "- チェイン演出: 7キーで連続発動\n" +
-                "- カウントダウン: 9キーで3...2...1...GO!\n" +
-                configReport;
+                "【次のステップ】\n" +
+                "Space Package Config を開き、以下を手動で設定してください：\n" +
+                "- C# Assembly: SpatialVFXCue\n" +
+                "- Scene: SpatialVFXCue_Demo（または既存シーン）\n" +
+                "- Network Prefabs: VFX_Fireworks 等 6種を登録";
 
             UnityEditor.EditorUtility.DisplayDialog("SpatialVFXCue Setup", message, "OK");
         }
 
-        [MenuItem("SpatialVFXCue/Register to Space Config")]
-        public static void RegisterToSpaceConfigMenu()
+        [MenuItem("SpatialVFXCue/Repair Scene Components")]
+        public static void RepairSceneComponents()
         {
-            string report = RegisterToSpaceConfig(true);
-            UnityEditor.EditorUtility.DisplayDialog("SpatialVFXCue", report, "OK");
-        }
-
-        /// <summary>
-        /// Space Config を検索（なければ作成）し、asmdef / Network Prefabs / シーンを登録する。
-        /// </summary>
-        private static string RegisterToSpaceConfig(bool createIfMissing)
-        {
-            // --- SpaceConfig を検索 ---
-            SpatialSDKEditor.SpaceConfig spaceConfig = FindSpaceConfig();
-
-            // 見つからなければ ProjectConfig 経由で作成
-            if (spaceConfig == null && createIfMissing)
+            var scene = UnityEditor.SceneManagement.EditorSceneManager.GetActiveScene();
+            if (!scene.IsValid() || !scene.isLoaded)
             {
-                spaceConfig = CreateSpaceConfig();
-            }
-
-            if (spaceConfig == null)
-            {
-                return "\n[失敗] Space Config が見つからず、自動作成もできませんでした。\n" +
-                       "Spatial SDK が正しくインストールされているか確認してください。";
-            }
-
-            string report = "";
-            bool modified = false;
-
-            // --- C# Assembly 登録 ---
-            var asmdef = AssetDatabase.LoadAssetAtPath<UnityEditorInternal.AssemblyDefinitionAsset>(AsmdefPath);
-            if (asmdef == null)
-            {
-                report += "\n[警告] SpatialVFXCue.asmdef が見つかりません: " + AsmdefPath;
-            }
-            else if (spaceConfig.csharpAssembly != asmdef)
-            {
-                spaceConfig.csharpAssembly = asmdef;
-                modified = true;
-                report += "\n- C# Assembly: 登録完了";
-                Debug.Log("[SpatialVFXCue] C# Assembly を Space Config に登録しました");
-            }
-            else
-            {
-                report += "\n- C# Assembly: 登録済み（変更なし）";
-            }
-
-            // --- デモシーン登録 ---
-            string demoScenePath = ScenePath + "/SpatialVFXCue_Demo.unity";
-            var sceneAsset = AssetDatabase.LoadAssetAtPath<SceneAsset>(demoScenePath);
-            if (sceneAsset != null && spaceConfig.scene != sceneAsset)
-            {
-                spaceConfig.scene = sceneAsset;
-                modified = true;
-                report += "\n- シーン: 登録完了";
-                Debug.Log("[SpatialVFXCue] デモシーンを Space Config に登録しました");
-            }
-            else if (sceneAsset != null)
-            {
-                report += "\n- シーン: 登録済み（変更なし）";
-            }
-
-            // --- Network Prefabs 登録 ---
-            int prefabsAdded = RegisterNetworkPrefabs(spaceConfig, ref modified);
-            if (prefabsAdded > 0)
-            {
-                report += $"\n- Network Prefabs: {prefabsAdded}個 追加登録";
-            }
-            else
-            {
-                report += "\n- Network Prefabs: 登録済み（変更なし）";
-            }
-
-            // --- 保存 ---
-            if (modified)
-            {
-                UnityEditor.EditorUtility.SetDirty(spaceConfig);
-                AssetDatabase.SaveAssets();
-                AssetDatabase.Refresh();
-            }
-
-            // --- 検証 ---
-            string validation = ValidateConfig(spaceConfig);
-            if (!string.IsNullOrEmpty(validation))
-            {
-                report += "\n\n[検証結果]\n" + validation;
-            }
-            else
-            {
-                report += "\n\nこれで準備完了です！パブリッシュできます。";
-            }
-
-            return report;
-        }
-
-        private static SpatialSDKEditor.SpaceConfig FindSpaceConfig()
-        {
-            // 方法1: ProjectConfig 経由（最も確実）
-            try
-            {
-                var projectConfig = SpatialSDKEditor.ProjectConfig.instance;
-                if (projectConfig != null)
-                {
-                    var active = SpatialSDKEditor.ProjectConfig.activePackageConfig;
-                    if (active is SpatialSDKEditor.SpaceConfig sc)
-                        return sc;
-
-                    var packages = SpatialSDKEditor.ProjectConfig.packages;
-                    if (packages != null)
-                    {
-                        foreach (var pkg in packages)
-                        {
-                            if (pkg is SpatialSDKEditor.SpaceConfig found)
-                                return found;
-                        }
-                    }
-                }
-            }
-            catch (System.Exception) { }
-
-            // 方法2: AssetDatabase で検索
-            string[] guids = AssetDatabase.FindAssets("t:SpaceConfig");
-            foreach (string guid in guids)
-            {
-                var config = AssetDatabase.LoadAssetAtPath<SpatialSDKEditor.SpaceConfig>(
-                    AssetDatabase.GUIDToAssetPath(guid)
-                );
-                if (config != null) return config;
-            }
-
-            return null;
-        }
-
-        private static SpatialSDKEditor.SpaceConfig CreateSpaceConfig()
-        {
-            try
-            {
-                // ProjectConfig がなければ作成
-                if (SpatialSDKEditor.ProjectConfig.instance == null)
-                {
-                    SpatialSDKEditor.ProjectConfig.Create();
-                }
-
-                // Space パッケージを追加
-                var newPackage = SpatialSDKEditor.ProjectConfig.AddNewPackage(
-                    PackageType.Space, true
-                );
-                if (newPackage is SpatialSDKEditor.SpaceConfig sc)
-                {
-                    sc.packageName = "SpatialVFXCue Demo";
-                    UnityEditor.EditorUtility.SetDirty(sc);
-                    AssetDatabase.SaveAssets();
-                    Debug.Log("[SpatialVFXCue] Space Config を自動作成しました");
-                    return sc;
-                }
-            }
-            catch (System.Exception e)
-            {
-                Debug.LogError($"[SpatialVFXCue] Space Config 作成失敗: {e.Message}");
-            }
-
-            return null;
-        }
-
-        private static int RegisterNetworkPrefabs(SpatialSDKEditor.SpaceConfig spaceConfig, ref bool modified)
-        {
-            string[] prefabGuids = AssetDatabase.FindAssets("t:Prefab", new[] { PrefabPath });
-            if (prefabGuids.Length == 0) return 0;
-
-            var prefabList = new List<SpatialNetworkObjectReferenceData>(
-                spaceConfig.networkPrefabs ?? new SpatialNetworkObjectReferenceData[0]
-            );
-
-            // 既存の無効エントリを除去
-            prefabList.RemoveAll(e => e.networkObject == null);
-
-            // 既に登録済みの networkObject を取得
-            var existingObjects = new HashSet<SpatialNetworkObject>();
-            foreach (var entry in prefabList)
-            {
-                if (entry.networkObject != null)
-                    existingObjects.Add(entry.networkObject);
+                UnityEditor.EditorUtility.DisplayDialog("SpatialVFXCue", "シーンが開かれていません。", "OK");
+                return;
             }
 
             int added = 0;
-            foreach (string guid in prefabGuids)
+            var roots = scene.GetRootGameObjects();
+            foreach (var root in roots)
             {
-                string path = AssetDatabase.GUIDToAssetPath(guid);
-                GameObject prefabGo = AssetDatabase.LoadAssetAtPath<GameObject>(path);
-                if (prefabGo == null) continue;
-
-                SpatialNetworkObject netObj = prefabGo.GetComponent<SpatialNetworkObject>();
-                if (netObj == null || existingObjects.Contains(netObj)) continue;
-
-                var entry = new SpatialNetworkObjectReferenceData();
-                entry.referenceType = NetworkPrefabReferenceType.Prefab;
-                entry.networkObject = netObj;
-                prefabList.Add(entry);
-                added++;
-                Debug.Log($"[SpatialVFXCue] Network Prefab 登録: {prefabGo.name}");
-            }
-
-            if (added > 0)
-            {
-                spaceConfig.networkPrefabs = prefabList.ToArray();
-                modified = true;
-            }
-
-            return added;
-        }
-
-        private static string ValidateConfig(SpatialSDKEditor.SpaceConfig spaceConfig)
-        {
-            var issues = new List<string>();
-
-            if (spaceConfig.csharpAssembly == null)
-                issues.Add("- C# Assembly が未設定です");
-
-            if (spaceConfig.scene == null)
-                issues.Add("- シーンが未設定です");
-
-            if (spaceConfig.networkPrefabs == null || spaceConfig.networkPrefabs.Length == 0)
-                issues.Add("- Network Prefabs が未登録です");
-            else
-            {
-                foreach (var prefab in spaceConfig.networkPrefabs)
+                // VFXCueManager が無いシーンにはマネージャーを追加しない（手動配置前提）
+                // 既存の VFXCueManager があれば、関連コンポーネントの欠落をチェック
+                var manager = root.GetComponentInChildren<VFXCueManager>(true);
+                if (manager != null)
                 {
-                    if (prefab.networkObject == null)
-                        issues.Add("- Network Prefabs に null エントリがあります");
-                    if (prefab.referenceType != NetworkPrefabReferenceType.Prefab)
-                        issues.Add($"- Network Prefab の参照タイプが不正です（Prefab にしてください）");
+                    if (manager.GetComponent<VFXCueLog>() == null)
+                    {
+                        manager.gameObject.AddComponent<VFXCueLog>();
+                        added++;
+                    }
+                    if (manager.GetComponent<VFXCueBPMSync>() == null)
+                    {
+                        manager.gameObject.AddComponent<VFXCueBPMSync>();
+                        added++;
+                    }
+                    if (manager.GetComponent<VFXCueVJController>() == null)
+                    {
+                        manager.gameObject.AddComponent<VFXCueVJController>();
+                        added++;
+                    }
                 }
             }
 
-            return issues.Count > 0 ? string.Join("\n", issues) : "";
+            UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(scene);
+
+            string message = added > 0
+                ? $"修復完了: {added} 個のコンポーネントを追加しました。\nシーンを保存してください。"
+                : "修復不要: すべてのコンポーネントが正常です。";
+            UnityEditor.EditorUtility.DisplayDialog("SpatialVFXCue Repair", message, "OK");
         }
 
         private static void EnsureDirectories()
