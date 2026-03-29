@@ -2,7 +2,6 @@
     "name": "SpatialVFXCue.Editor",
     "rootNamespace": "SpatialVFXCue",
     "references": [
-        "SpatialVFXCue",
         "SpatialSys.UnitySDK",
         "SpatialSys.UnitySDK.Editor"
     ],
