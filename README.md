@@ -29,10 +29,14 @@ Unity の `Window > Package Manager > + > Add package from git URL` に入力：
 https://openupm.com/packages/io.spatial.unitysdk/
 ```
 
+---
+
 ### ステップ 2：このアセットをダウンロード
 
 1. このページ右上の緑のボタン **「Code」→「Download ZIP」** をクリック
 2. ZIP を解凍する
+
+---
 
 ### ステップ 3：Unity プロジェクトにコピー
 
@@ -53,12 +57,18 @@ Assets/
 
 5. Unity に戻ると自動でインポートが始まります（しばらく待つ）
 
+---
+
 ### ステップ 4：セットアップ
 
 Unity メニューバーから実行：
 ```
 SpatialVFXCue > One-Click Setup
 ```
+
+VFX プレハブとデモシーンが自動生成されます。
+
+---
 
 ### ステップ 5：デモシーンで確認
 
