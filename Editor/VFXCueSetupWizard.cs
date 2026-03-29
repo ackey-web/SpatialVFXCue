@@ -44,8 +44,8 @@ namespace SpatialVFXCue
             UnityEditor.EditorUtility.DisplayDialog("SpatialVFXCue Setup", message, "OK");
         }
 
-        [MenuItem("SpatialVFXCue/Repair Scene Components")]
-        public static void RepairSceneComponents()
+        [MenuItem("SpatialVFXCue/Add VFXCue to Current Scene")]
+        public static void AddVFXCueToScene()
         {
             var scene = UnityEditor.SceneManagement.EditorSceneManager.GetActiveScene();
             if (!scene.IsValid() || !scene.isLoaded)
@@ -54,39 +54,243 @@ namespace SpatialVFXCue
                 return;
             }
 
-            int added = 0;
-            var roots = scene.GetRootGameObjects();
-            foreach (var root in roots)
+            // 既存の VFXCueManager を検索
+            VFXCueManager existingManager = null;
+            foreach (var root in scene.GetRootGameObjects())
             {
-                // VFXCueManager が無いシーンにはマネージャーを追加しない（手動配置前提）
-                // 既存の VFXCueManager があれば、関連コンポーネントの欠落をチェック
-                var manager = root.GetComponentInChildren<VFXCueManager>(true);
-                if (manager != null)
-                {
-                    if (manager.GetComponent<VFXCueLog>() == null)
-                    {
-                        manager.gameObject.AddComponent<VFXCueLog>();
-                        added++;
-                    }
-                    if (manager.GetComponent<VFXCueBPMSync>() == null)
-                    {
-                        manager.gameObject.AddComponent<VFXCueBPMSync>();
-                        added++;
-                    }
-                    if (manager.GetComponent<VFXCueVJController>() == null)
-                    {
-                        manager.gameObject.AddComponent<VFXCueVJController>();
-                        added++;
-                    }
-                }
+                existingManager = root.GetComponentInChildren<VFXCueManager>(true);
+                if (existingManager != null) break;
             }
+
+            if (existingManager != null)
+            {
+                bool overwrite = UnityEditor.EditorUtility.DisplayDialog(
+                    "SpatialVFXCue",
+                    "このシーンには既に VFXCueManager があります。\n上書きせず、コンポーネントの欠落だけ修復しますか？",
+                    "修復のみ", "キャンセル");
+                if (!overwrite) return;
+
+                int repaired = RepairExistingManager(existingManager);
+                UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(scene);
+                UnityEditor.EditorUtility.DisplayDialog("SpatialVFXCue",
+                    repaired > 0
+                        ? $"修復完了: {repaired} 個のコンポーネントを追加しました。\nシーンを保存してください。"
+                        : "修復不要: すべてのコンポーネントが正常です。",
+                    "OK");
+                return;
+            }
+
+            // Prefab が存在するか確認
+            string[] prefabNames = {
+                "VFX_Fireworks", "VFX_Confetti", "VFX_MeteorShower",
+                "VFX_SpotlightBeam", "VFX_SmokeBurst", "VFX_SparkleRain"
+            };
+            int foundPrefabs = 0;
+            foreach (string name in prefabNames)
+            {
+                if (AssetDatabase.LoadAssetAtPath<GameObject>($"{PrefabPath}/{name}.prefab") != null)
+                    foundPrefabs++;
+            }
+            if (foundPrefabs == 0)
+            {
+                UnityEditor.EditorUtility.DisplayDialog("SpatialVFXCue",
+                    "VFX Prefab が見つかりません。\n先に「SpatialVFXCue > Setup Sample Assets」を実行してください。",
+                    "OK");
+                return;
+            }
+
+            // ── VFXCueManager 作成 ──
+            GameObject managerObj = new GameObject("VFXCueManager");
+            VFXCueManager manager = managerObj.AddComponent<VFXCueManager>();
+            manager.adminOnly = true;
+            managerObj.AddComponent<VFXCueLog>();
+
+            string[] cueNames = { "花火", "紙吹雪", "流星群", "スポットライト", "スモーク爆発", "キラキラの雨" };
+            KeyCode[] keys = {
+                KeyCode.Alpha1, KeyCode.Alpha2, KeyCode.Alpha3,
+                KeyCode.Alpha4, KeyCode.Alpha5, KeyCode.Alpha6
+            };
+
+            for (int i = 0; i < prefabNames.Length; i++)
+            {
+                string prefabAssetPath = $"{PrefabPath}/{prefabNames[i]}.prefab";
+                SpatialNetworkObject prefab = null;
+                GameObject prefabGo = AssetDatabase.LoadAssetAtPath<GameObject>(prefabAssetPath);
+                if (prefabGo != null)
+                    prefab = prefabGo.GetComponent<SpatialNetworkObject>();
+
+                VFXCueEntry entry = new VFXCueEntry
+                {
+                    triggerKey = keys[i],
+                    vfxPrefab = prefab,
+                    cueName = cueNames[i],
+                    worldPosition = new Vector3(0f, 3f, 0f),
+                    autoDestroyTime = 6f,
+                    cooldown = 0.5f
+                };
+                manager.cues.Add(entry);
+            }
+            if (manager.cues.Count > 3)
+                manager.cues[3].autoDestroyTime = 3f;
+
+            // ── BPM 同期 ──
+            GameObject bpmObj = new GameObject("VFXCueBPMSync");
+            VFXCueBPMSync bpmSync = bpmObj.AddComponent<VFXCueBPMSync>();
+            bpmSync.cueManager = manager;
+            bpmSync.bpm = 128f;
+            bpmSync.beatInterval = 1f;
+            bpmSync.tapTempoKey = KeyCode.T;
+            bpmSync.beatStartKey = KeyCode.B;
+            bpmSync.showBeatFlash = true;
+            for (int i = 0; i < cueNames.Length; i++)
+            {
+                VFXCueBPMSync.BPMCueMapping mapping = new VFXCueBPMSync.BPMCueMapping();
+                mapping.key = keys[i];
+                mapping.cueName = cueNames[i];
+                bpmSync.cueMappings.Add(mapping);
+            }
+
+            // ── ランダム VFX ──
+            GameObject randomObj = new GameObject("VFXCueRandom");
+            VFXCueRandom vfxRandom = randomObj.AddComponent<VFXCueRandom>();
+            vfxRandom.cueManager = manager;
+            vfxRandom.triggerKey = KeyCode.Alpha8;
+            vfxRandom.cooldown = 1f;
+            vfxRandom.avoidRepeat = true;
+            vfxRandom.cueNames = new List<string>(cueNames);
+
+            // ── チェイン演出 ──
+            GameObject chainObj = new GameObject("VFXCueChain");
+            VFXCueChain vfxChain = chainObj.AddComponent<VFXCueChain>();
+            vfxChain.cueManager = manager;
+            vfxChain.triggerKey = KeyCode.Alpha7;
+            vfxChain.chainSteps = new List<VFXCueChain.ChainStep>();
+            string[] chainCues = { "花火", "紙吹雪", "キラキラの雨" };
+            float[] chainDelays = { 0f, 1.5f, 3f };
+            for (int i = 0; i < chainCues.Length; i++)
+            {
+                VFXCueChain.ChainStep step = new VFXCueChain.ChainStep();
+                step.cueName = chainCues[i];
+                step.delay = chainDelays[i];
+                vfxChain.chainSteps.Add(step);
+            }
+
+            // ── カウントダウン ──
+            GameObject countdownObj = new GameObject("VFXCueCountdown");
+            VFXCueCountdown vfxCountdown = countdownObj.AddComponent<VFXCueCountdown>();
+            vfxCountdown.cueManager = manager;
+            vfxCountdown.countdownFrom = 3;
+            vfxCountdown.intervalSeconds = 1f;
+            vfxCountdown.triggerKey = KeyCode.Alpha9;
+            vfxCountdown.climaxCueNames = new List<string>(cueNames);
+            vfxCountdown.climaxStagger = 0.15f;
+
+            // ── VJ コントローラー ──
+            GameObject vjObj = new GameObject("VFXCueVJController");
+            VFXCueVJController vjCtrl = vjObj.AddComponent<VFXCueVJController>();
+            VFXCueVJPanel vjPanel = vjObj.AddComponent<VFXCueVJPanel>();
+            vjCtrl.cueManager = manager;
+            vjPanel.vjController = vjCtrl;
+            vjCtrl.layers = new List<VFXCueVJLayer>
+            {
+                new VFXCueVJLayer { layerName = "All", layerColor = Color.white },
+                new VFXCueVJLayer { layerName = "BG", layerColor = new Color(0.3f, 0.5f, 1f) },
+                new VFXCueVJLayer { layerName = "FG", layerColor = new Color(1f, 0.4f, 0.3f) },
+                new VFXCueVJLayer { layerName = "Accent", layerColor = new Color(1f, 0.8f, 0.2f) }
+            };
+            int[] layerAssignments = { 2, 2, 1, 3, 1, 3 };
+            for (int i = 0; i < manager.cues.Count && i < layerAssignments.Length; i++)
+                manager.cues[i].layerIndex = layerAssignments[i];
+            manager.vjController = vjCtrl;
 
             UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(scene);
 
-            string message = added > 0
-                ? $"修復完了: {added} 個のコンポーネントを追加しました。\nシーンを保存してください。"
-                : "修復不要: すべてのコンポーネントが正常です。";
-            UnityEditor.EditorUtility.DisplayDialog("SpatialVFXCue Repair", message, "OK");
+            UnityEditor.EditorUtility.DisplayDialog("SpatialVFXCue",
+                "VFXCue コンポーネントを現在のシーンに追加しました！\n\n" +
+                "【追加されたもの】\n" +
+                "- VFXCueManager（キー1〜6で発動）\n" +
+                "- BPM同期（T:タップテンポ, B:ビート開始）\n" +
+                "- ランダムVFX（8キー）\n" +
+                "- チェイン演出（7キー）\n" +
+                "- カウントダウン（9キー）\n" +
+                "- VJコントローラー\n\n" +
+                "シーンを保存してください。\n" +
+                "Space Package Config の Network Prefabs に VFX Prefab 6種の登録も忘れずに。",
+                "OK");
+        }
+
+        private static int RepairExistingManager(VFXCueManager manager)
+        {
+            int added = 0;
+            if (manager.GetComponent<VFXCueLog>() == null)
+            {
+                manager.gameObject.AddComponent<VFXCueLog>();
+                added++;
+            }
+
+            VFXCueBPMSync bpmSync = Object.FindObjectOfType<VFXCueBPMSync>();
+            if (bpmSync == null)
+            {
+                GameObject bpmObj = new GameObject("VFXCueBPMSync");
+                bpmSync = bpmObj.AddComponent<VFXCueBPMSync>();
+                bpmSync.cueManager = manager;
+                bpmSync.bpm = 128f;
+                bpmSync.beatInterval = 1f;
+                bpmSync.tapTempoKey = KeyCode.T;
+                bpmSync.beatStartKey = KeyCode.B;
+                bpmSync.showBeatFlash = true;
+                added++;
+            }
+
+            if (Object.FindObjectOfType<VFXCueVJController>() == null)
+            {
+                GameObject vjObj = new GameObject("VFXCueVJController");
+                VFXCueVJController vjCtrl = vjObj.AddComponent<VFXCueVJController>();
+                vjObj.AddComponent<VFXCueVJPanel>().vjController = vjCtrl;
+                vjCtrl.cueManager = manager;
+                vjCtrl.layers = new List<VFXCueVJLayer>
+                {
+                    new VFXCueVJLayer { layerName = "All", layerColor = Color.white },
+                    new VFXCueVJLayer { layerName = "BG", layerColor = new Color(0.3f, 0.5f, 1f) },
+                    new VFXCueVJLayer { layerName = "FG", layerColor = new Color(1f, 0.4f, 0.3f) },
+                    new VFXCueVJLayer { layerName = "Accent", layerColor = new Color(1f, 0.8f, 0.2f) }
+                };
+                manager.vjController = vjCtrl;
+                added++;
+            }
+
+            if (Object.FindObjectOfType<VFXCueRandom>() == null)
+            {
+                GameObject randomObj = new GameObject("VFXCueRandom");
+                VFXCueRandom vfxRandom = randomObj.AddComponent<VFXCueRandom>();
+                vfxRandom.cueManager = manager;
+                vfxRandom.triggerKey = KeyCode.Alpha8;
+                vfxRandom.cooldown = 1f;
+                vfxRandom.avoidRepeat = true;
+                added++;
+            }
+
+            if (Object.FindObjectOfType<VFXCueChain>() == null)
+            {
+                GameObject chainObj = new GameObject("VFXCueChain");
+                VFXCueChain vfxChain = chainObj.AddComponent<VFXCueChain>();
+                vfxChain.cueManager = manager;
+                vfxChain.triggerKey = KeyCode.Alpha7;
+                added++;
+            }
+
+            if (Object.FindObjectOfType<VFXCueCountdown>() == null)
+            {
+                GameObject countdownObj = new GameObject("VFXCueCountdown");
+                VFXCueCountdown vfxCountdown = countdownObj.AddComponent<VFXCueCountdown>();
+                vfxCountdown.cueManager = manager;
+                vfxCountdown.countdownFrom = 3;
+                vfxCountdown.intervalSeconds = 1f;
+                vfxCountdown.triggerKey = KeyCode.Alpha9;
+                added++;
+            }
+
+            return added;
         }
 
         private static void EnsureDirectories()
