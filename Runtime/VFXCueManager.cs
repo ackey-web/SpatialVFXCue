@@ -144,15 +144,17 @@ namespace SpatialVFXCue
 
 #if UNITY_EDITOR
             GameObject obj = Instantiate(cue.vfxPrefab.gameObject, pos, rot);
-            // ランタイムで VFXCueEffect を追加
-            VFXCueEffect heldEffect = obj.AddComponent<VFXCueEffect>();
-            heldEffect.autoDestroyTime = 9999f; // ホールドは手動破棄
+            VFXCueEffect heldEffect = obj.GetComponent<VFXCueEffect>();
+            if (heldEffect != null)
+            {
+                heldEffect.autoDestroyTime = 9999f; // ホールドは手動破棄
+            }
             _heldVFX[cueName] = obj;
 
             // VJコントローラーのパラメータを適用
             try
             {
-                if (vjController != null)
+                if (vjController != null && heldEffect != null)
                     vjController.ApplyParametersToEffect(heldEffect, cue);
             }
             catch (System.Exception e)
@@ -264,22 +266,19 @@ namespace SpatialVFXCue
                 foreach (var ps in spawnedObj.GetComponentsInChildren<ParticleSystem>(true))
                     ps.Play(true);
 
-                // ランタイムで VFXCueEffect を追加（Prefab には含めない）
-                try
+                // Prefab に事前アタッチ済みの VFXCueEffect を取得
+                VFXCueEffect effect = spawnedObj.GetComponent<VFXCueEffect>();
+                if (effect != null)
                 {
-                    VFXCueEffect effect = spawnedObj.AddComponent<VFXCueEffect>();
                     effect.autoDestroyTime = cue.autoDestroyTime;
 
                     // VJコントローラーのパラメータを適用
                     if (vjController != null)
                         vjController.ApplyParametersToEffect(effect, cue);
                 }
-                catch (System.Exception e)
+                else
                 {
-                    // AddComponent が使えない環境（Spatial サンドボックス）ではタイマー消滅
-#if UNITY_EDITOR
-                    Debug.LogWarning($"[SpatialVFXCue] VFXCueEffect 追加不可: {e.Message}");
-#endif
+                    // VFXCueEffect が無い場合はタイマーで直接消滅
                     Destroy(spawnedObj, cue.autoDestroyTime);
                 }
             }

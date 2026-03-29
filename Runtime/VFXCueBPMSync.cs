@@ -651,6 +651,7 @@ namespace SpatialVFXCue
 
         private void OnGUI()
         {
+#if UNITY_EDITOR
             if (!showBeatFlash) return;
             InitGUIStyles();
 
@@ -759,6 +760,7 @@ namespace SpatialVFXCue
             y += 16f;
             GUI.Label(new Rect(x, y, 280f, 20f),
                 "[N]Select [P]SavePreset [Z]RecallPreset", _guiHelpStyle);
+#endif
         }
     }
 }

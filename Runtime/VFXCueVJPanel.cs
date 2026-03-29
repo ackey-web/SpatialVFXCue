@@ -70,6 +70,7 @@ namespace SpatialVFXCue
 
         private void OnGUI()
         {
+#if UNITY_EDITOR
             try
             {
                 if (vjController == null) return;
@@ -105,6 +106,7 @@ namespace SpatialVFXCue
 
             }
             catch { }
+#endif
         }
 
         // ================================================================
